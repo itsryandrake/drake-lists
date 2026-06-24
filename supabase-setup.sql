@@ -1,27 +1,34 @@
 -- Run this in the Supabase SQL Editor:
 -- https://supabase.com/dashboard/project/hudacpdajmfsejnbognh/sql/new
 
-CREATE TABLE IF NOT EXISTS shared_lists (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    list_name TEXT NOT NULL DEFAULT 'Shared Shopping + Grocery',
-    item TEXT NOT NULL,
-    completed BOOLEAN DEFAULT false,
-    added_by TEXT NOT NULL DEFAULT 'donna',
-    created_at TIMESTAMPTZ DEFAULT now(),
-    completed_at TIMESTAMPTZ
-);
+-- Add new columns to shared_lists
+ALTER TABLE shared_lists 
+ADD COLUMN IF NOT EXISTS owner TEXT NOT NULL DEFAULT 'ryan',
+ADD COLUMN IF NOT EXISTS list_slug TEXT NOT NULL DEFAULT 'shopping',
+ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT NULL,
+ADD COLUMN IF NOT EXISTS due_date DATE DEFAULT NULL,
+ADD COLUMN IF NOT EXISTS reminder_enabled BOOLEAN DEFAULT false;
 
--- Enable RLS but allow public read access (for the web app)
-ALTER TABLE shared_lists ENABLE ROW LEVEL SECURITY;
+-- Add check constraint for priority (skip if exists)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'shared_lists_priority_check' AND conrelid = 'shared_lists'::regclass
+    ) THEN
+        ALTER TABLE shared_lists ADD CONSTRAINT shared_lists_priority_check 
+        CHECK (priority IN ('low', 'medium', 'high'));
+    END IF;
+END $$;
 
-CREATE POLICY "Allow public read" ON shared_lists
-    FOR SELECT USING (true);
-
-CREATE POLICY "Allow public insert" ON shared_lists
-    FOR INSERT WITH CHECK (true);
-
-CREATE POLICY "Allow public update" ON shared_lists
-    FOR UPDATE USING (true);
-
-CREATE POLICY "Allow public delete" ON shared_lists
-    FOR DELETE USING (true);
+-- Add check constraint for owner
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'shared_lists_owner_check' AND conrelid = 'shared_lists'::regclass
+    ) THEN
+        ALTER TABLE shared_lists ADD CONSTRAINT shared_lists_owner_check 
+        CHECK (owner IN ('ryan', 'emily', 'shared'));
+    END IF;
+END $$;
